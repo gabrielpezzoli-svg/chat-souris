@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Chat & Souris 🐱🐭</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; height: 100vh; overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  .screen { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; text-align: center; }
+  .screen.active { display: flex; }
+  #home { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+  .logo { font-size: 72px; margin-bottom: 16px; animation: bounce 2s infinite; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  h1 { font-size: 2.2rem; font-weight: 900; background: linear-gradient(90deg, #e94560, #f5a623); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
+  .subtitle { color: #888; margin-bottom: 40px; font-size: 0.95rem; }
+  .btn { width: 100%; max-width: 320px; padding: 16px 24px; border-radius: 16px; border: none; font-size: 1rem; font-weight: 700; cursor: pointer; margin: 8px 0; transition: all 0.2s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: linear-gradient(135deg, #e94560, #c0392b); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }
+  .btn-secondary { background: rgba(255,255,255,0.08); color: white; border: 2px solid rgba(255,255,255,0.15); }
+  .btn-success { background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; box-shadow: 0 4px 20px rgba(39,174,96,0.4); }
+  .btn-warning { background: linear-gradient(135deg, #f39c12, #f5a623); color: #000; }
+  .btn-sm { padding: 8px 16px; font-size: 0.85rem; border-radius: 10px; }
+  .input-field { width: 100%; max-width: 320px; padding: 14px 18px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: white; font-size: 1rem; margin: 8px 0; outline: none; }
+  .input-field:focus { border-color: #e94560; }
+  .input-field::placeholder { color: #555; }
+  #zone-screen { padding: 0; justify-content: flex-start; background: #0f0f1a; }
+  #zone-toolbar { padding: 12px 16px; background: #1a1a2e; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #zone-toolbar h3 { flex: 1; font-size: 0.95rem; }
+  #zone-hint { padding: 8px 16px; background: rgba(245,166,35,0.12); color: #f5a623; font-size: 0.8rem; border-left: 3px solid #f5a623; text-align: left; }
+  #map { flex: 1; width: 100%; min-height: 0; }
+  #lobby { background: linear-gradient(135deg, #1a1a2e, #0f3460); }
+  .room-code { font-size: 3rem; font-weight: 900; letter-spacing: 10px; color: #f5a623; margin: 12px 0; font-family: monospace; text-shadow: 0 0 30px rgba(245,166,35,0.5); }
+  .players-list { width: 100%; max-width: 340px; margin: 12px 0; }
+  .player-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(255,255,255,0.05); border-radius: 12px; margin: 6px 0; border: 1px solid rgba(255,255,255,0.06); }
+  .player-avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+  .player-name { flex: 1; font-weight: 600; text-align: left; }
+  .role-badge-sm { font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; font-weight: 700; }
+  .role-loup { background: #e94560; color: white; }
+  .role-souris { background: #27ae60; color: white; }
+  #game-screen { padding: 0; justify-content: flex-start; background: #0f0f1a; }
+  #game-header { padding: 10px 14px; background: #1a1a2e; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  #role-pill { padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 0.85rem; }
+  #game-map { flex: 1; width: 100%; min-height: 0; }
+  #game-footer { padding: 10px 14px; background: #1a1a2e; border-top: 1px solid rgba(255,255,255,0.06); }
+  #touch-btn { display: none; width: 100%; padding: 18px; border-radius: 16px; border: none; background: #555; color: white; font-size: 1.1rem; font-weight: 800; cursor: pointer; transition: all 0.3s; }
+  #touch-btn.ready { background: linear-gradient(135deg, #e94560, #c0392b); box-shadow: 0 4px 20px rgba(233,69,96,0.5); animation: readyPulse 1s infinite; }
+  @keyframes readyPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.02)} }
+  #touch-btn:active { transform: scale(0.97) !important; }
+  #players-status { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding-top: 8px; }
+  #notif { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #f5a623; color: #000; padding: 12px 24px; border-radius: 14px; font-weight: 700; font-size: 0.9rem; z-index: 9999; display: none; box-shadow: 0 4px 24px rgba(0,0,0,0.6); max-width: 90vw; text-align: center; }
+  #oob-alert { position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%); background: #e94560; color: white; padding: 12px 24px; border-radius: 14px; font-weight: 700; font-size: 0.9rem; z-index: 9999; display: none; animation: pulse 1s infinite; white-space: nowrap; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* OVERLAY ACCEPTER LE RÔLE */
+  #accept-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 99999; padding: 32px; text-align: center; }
+  #accept-overlay .big-emoji { font-size: 96px; margin-bottom: 16px; animation: bounce 1s infinite; }
+  #accept-overlay h2 { font-size: 1.8rem; font-weight: 900; margin-bottom: 8px; color: #e94560; }
+  #accept-overlay p { color: #aaa; margin-bottom: 8px; font-size: 0.95rem; }
+  #accept-overlay .catcher-name { font-size: 1.2rem; font-weight: 700; color: #f5a623; margin-bottom: 24px; }
+  #accept-btn { width: 100%; max-width: 280px; padding: 20px; border-radius: 16px; border: none; background: linear-gradient(135deg, #e94560, #c0392b); color: white; font-size: 1.2rem; font-weight: 900; cursor: pointer; box-shadow: 0 4px 30px rgba(233,69,96,0.6); animation: readyPulse 1s infinite; }
+
+  /* OVERLAY RÔLE INITIAL */
+  #role-change { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 99998; padding: 32px; text-align: center; }
+  #role-change .big-emoji { font-size: 96px; margin-bottom: 16px; }
+  #role-change h2 { font-size: 1.8rem; font-weight: 900; margin-bottom: 8px; }
+  #role-change p { color: #aaa; margin-bottom: 32px; }
+
+  /* RADAR DISTANCE */
+  #distance-indicator { text-align: center; font-size: 0.8rem; color: #888; padding: 4px 0 2px; }
+  .dist-close { color: #e94560 !important; font-weight: 700; }
+  .dist-medium { color: #f5a623 !important; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div id="notif"></div>
+<div id="oob-alert">⚠️ Tu sors du périmètre !</div>
+
+<!-- OVERLAY : accepter le rôle de loup -->
+<div id="accept-overlay">
+  <div class="big-emoji">🐱</div>
+  <h2>Tu es TOUCHÉ !</h2>
+  <p>Tu as été attrapé par</p>
+  <div class="catcher-name" id="catcher-name">—</div>
+  <p style="margin-bottom:24px;font-size:0.85rem;color:#666;">Tu deviens maintenant le loup 🐱<br>Appuie pour confirmer !</p>
+  <button id="accept-btn" onclick="acceptLoup()">🐱 J'accepte — Je suis le LOUP !</button>
+</div>
+
+<!-- OVERLAY : annonce de rôle -->
+<div id="role-change">
+  <div class="big-emoji" id="rc-emoji">🐱</div>
+  <h2 id="rc-title">Tu es le LOUP !</h2>
+  <p id="rc-sub">Trouve et touche les souris !</p>
+  <button class="btn btn-primary" style="max-width:240px;" onclick="dismissRoleChange()">C'est parti !</button>
+</div>
+
+<div id="app">
+  <!-- HOME -->
+  <div id="home" class="screen active">
+    <div class="logo">🐱🐭</div>
+    <h1>Chat &amp; Souris</h1>
+    <p class="subtitle">Le loup version GPS — entre amis</p>
+    <button class="btn btn-primary" onclick="showScreen('create')">🎮 Créer une partie</button>
+    <button class="btn btn-secondary" onclick="showScreen('join')">🔗 Rejoindre une partie</button>
+  </div>
+  <!-- CREATE -->
+  <div id="create" class="screen" style="background:#0f0f1a;">
+    <div style="font-size:52px;margin-bottom:16px;">🎲</div>
+    <h2 style="font-size:1.5rem;margin-bottom:6px;">Nouvelle partie</h2>
+    <p style="color:#777;margin-bottom:28px;font-size:0.9rem;">Tu seras le premier 🐱 Loup</p>
+    <input class="input-field" id="creator-name" placeholder="Ton prénom" maxlength="15"/>
+    <button class="btn btn-primary" onclick="createGame()">Définir la zone →</button>
+    <button class="btn btn-secondary" style="margin-top:6px;" onclick="showScreen('home')">← Retour</button>
+  </div>
+  <!-- JOIN -->
+  <div id="join" class="screen" style="background:#0f0f1a;">
+    <div style="font-size:52px;margin-bottom:16px;">🔎</div>
+    <h2 style="font-size:1.5rem;margin-bottom:6px;">Rejoindre</h2>
+    <p style="color:#777;margin-bottom:28px;font-size:0.9rem;">Entre le code donné par le créateur</p>
+    <input class="input-field" id="join-name" placeholder="Ton prénom" maxlength="15"/>
+    <input class="input-field" id="join-code" placeholder="CODE" maxlength="4"
+      style="text-transform:uppercase;letter-spacing:8px;font-size:1.4rem;font-weight:900;text-align:center;font-family:monospace;"/>
+    <button class="btn btn-success" onclick="joinGame()">Rejoindre →</button>
+    <button class="btn btn-secondary" style="margin-top:6px;" onclick="showScreen('home')">← Retour</button>
+  </div>
+  <!-- ZONE -->
+  <div id="zone-screen" class="screen" style="flex-direction:column;">
+    <div id="zone-toolbar">
+      <h3>📍 Trace la zone de jeu</h3>
+      <button class="btn btn-secondary btn-sm" onclick="clearZone()">Effacer</button>
+      <button class="btn btn-success btn-sm" onclick="confirmZone()">✓ OK</button>
+    </div>
+    <div id="zone-hint">Appuie sur la carte pour poser les coins du périmètre (min. 3 points), puis confirme.</div>
+    <div id="map"></div>
+  </div>
+  <!-- LOBBY -->
+  <div id="lobby" class="screen">
+    <h2 style="font-size:1.4rem;margin-bottom:4px;">Salle d'attente</h2>
+    <p style="color:#666;font-size:0.85rem;">Partage ce code à tes amis</p>
+    <div class="room-code" id="display-code">----</div>
+    <div id="players-list" class="players-list"></div>
+    <div id="lobby-actions"></div>
+  </div>
+  <!-- GAME -->
+  <div id="game-screen" class="screen" style="flex-direction:column;">
+    <div id="game-header">
+      <span id="role-pill">🐱 Loup</span>
+      <span style="flex:1;font-size:0.8rem;color:#777;padding-left:8px;" id="game-info"></span>
+    </div>
+    <div id="game-map"></div>
+    <div id="game-footer">
+      <div id="distance-indicator"></div>
+      <button id="touch-btn" onclick="touchPlayer()">🐾 Approche-toi d'une souris…</button>
+      <div id="players-status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// ÉTAT
+// ================================================================
+const S = {
+  name:'', id:'', code:'', isCreator:false, isLoup:false,
+  started:false, zone:[], players:{}, myLat:null, myLng:null,
+  watchId:null, pollId:null, lobbyPollId:null,
+  pendingTouchTarget:null  // {id, name} — la souris que le loup veut toucher
+};
+
+let zMap=null, gMap=null;
+let zPoints=[], zMarkers=[], zPoly=null;
+let myMarker=null, otherMarkers={};
+let bc=null;
+
+// ================================================================
+// UTILS
+// ================================================================
+const $=id=>document.getElementById(id);
+function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ';return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');}
+function genId(){return Math.random().toString(36).substr(2,9);}
+function showNotif(msg,bg='#f5a623'){
+  const el=$('notif');el.textContent=msg;el.style.background=bg;
+  el.style.color=bg==='#f5a623'?'#000':'#fff';
+  el.style.display='block';clearTimeout(el._t);el._t=setTimeout(()=>el.style.display='none',4000);
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>{s.style.display='none';s.classList.remove('active');});
+  const el=$(id);el.style.display='flex';el.classList.add('active');
+}
+
+// ================================================================
+// STORAGE
+// ================================================================
+const rk=code=>'cs3_'+code;
+function readRoom(code){try{return JSON.parse(localStorage.getItem(rk(code)));}catch{return null;}}
+function writeRoom(code,data){
+  localStorage.setItem(rk(code),JSON.stringify(data));
+  if(bc)bc.postMessage({type:'upd',code});
+}
+function updateMe(extra={}){
+  const room=readRoom(S.code);if(!room)return;
+  room.players[S.id]={...(room.players[S.id]||{}),name:S.name,lat:S.myLat,lng:S.myLng,ts:Date.now(),...extra};
+  writeRoom(S.code,room);
+}
+function setupBC(){
+  if(bc)bc.close();
+  try{bc=new BroadcastChannel('cs_'+S.code);bc.onmessage=()=>onRemoteUpdate();}catch{}
+}
+
+// ================================================================
+// CRÉER
+// ================================================================
+function createGame(){
+  const name=$('creator-name').value.trim();
+  if(!name){showNotif('Entre ton prénom !','#e94560');return;}
+  S.name=name;S.id=genId();S.code=genCode();S.isCreator=true;S.isLoup=true;
+  showScreen('zone-screen');setTimeout(initZoneMap,80);
+}
+function initZoneMap(){
+  if(zMap){zMap.remove();zMap=null;}
+  zPoints=[];zMarkers=[];zPoly=null;
+  zMap=L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(zMap);
+  navigator.geolocation?.getCurrentPosition(
+    p=>zMap.setView([p.coords.latitude,p.coords.longitude],18),
+    ()=>zMap.setView([48.8566,2.3522],16)
+  );
+  zMap.on('click',e=>addZPt(e.latlng));
+}
+function addZPt(ll){
+  zPoints.push(ll);
+  zMarkers.push(L.circleMarker(ll,{radius:7,color:'#f5a623',fillColor:'#f5a623',fillOpacity:1}).addTo(zMap));
+  if(zPoly)zMap.removeLayer(zPoly);
+  if(zPoints.length>=3)zPoly=L.polygon(zPoints,{color:'#e94560',fillColor:'#e94560',fillOpacity:0.15,weight:2,dashArray:'6'}).addTo(zMap);
+}
+function clearZone(){
+  zPoints=[];zMarkers.forEach(m=>zMap.removeLayer(m));zMarkers=[];
+  if(zPoly){zMap.removeLayer(zPoly);zPoly=null;}
+}
+function confirmZone(){
+  if(zPoints.length<3){showNotif('Place au moins 3 points !','#e94560');return;}
+  S.zone=zPoints.map(p=>({lat:p.lat,lng:p.lng}));
+  const room={code:S.code,zone:S.zone,started:false,loupId:S.id,
+    touchRequest:null,  // {fromId, fromName, toId} — demande de touch en attente
+    players:{[S.id]:{name:S.name,isLoup:true,lat:null,lng:null,ts:Date.now()}}
+  };
+  writeRoom(S.code,room);setupBC();openLobby();
+}
+
+// ================================================================
+// REJOINDRE
+// ================================================================
+function joinGame(){
+  const name=$('join-name').value.trim();
+  const code=$('join-code').value.trim().toUpperCase();
+  if(!name){showNotif('Entre ton prénom !','#e94560');return;}
+  if(code.length!==4){showNotif('Code à 4 lettres !','#e94560');return;}
+  const room=readRoom(code);
+  if(!room){showNotif('Partie introuvable !','#e94560');return;}
+  if(room.started){showNotif('Partie déjà commencée !','#e94560');return;}
+  S.name=name;S.id=genId();S.code=code;S.isLoup=false;S.zone=room.zone;
+  room.players[S.id]={name:S.name,isLoup:false,lat:null,lng:null,ts:Date.now()};
+  writeRoom(code,room);setupBC();openLobby();
+}
+
+// ================================================================
+// LOBBY
+// ================================================================
+function openLobby(){
+  showScreen('lobby');$('display-code').textContent=S.code;
+  renderLobby();S.lobbyPollId=setInterval(renderLobby,2000);
+}
+function renderLobby(){
+  const room=readRoom(S.code);if(!room)return;
+  if(room.started&&!S.started){clearInterval(S.lobbyPollId);launchGame(room);return;}
+  const avs=['🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯'];
+  const entries=Object.entries(room.players);
+  $('players-list').innerHTML=entries.map(([id,p],i)=>`
+    <div class="player-item">
+      <div class="player-avatar" style="background:${p.isLoup?'rgba(233,69,96,.15)':'rgba(39,174,96,.15)'}">${p.isLoup?'🐱':avs[i%avs.length]}</div>
+      <span class="player-name">${p.name}${id===S.id?' <span style="color:#666;font-size:.75rem;">(toi)</span>':''}</span>
+      <span class="role-badge-sm ${p.isLoup?'role-loup':'role-souris'}">${p.isLoup?'🐱 Loup':'🐭 Souris'}</span>
+    </div>`).join('');
+  const act=$('lobby-actions');
+  if(S.isCreator){
+    act.innerHTML=entries.length>=2
+      ?`<button class="btn btn-success" onclick="startGameNow()">🚀 Lancer (${entries.length} joueurs)</button>`
+      :`<p style="color:#555;font-size:.85rem;margin-top:8px;">En attente de joueurs...</p>`;
+  }else{
+    act.innerHTML=`<p style="color:#555;font-size:.85rem;margin-top:8px;">En attente du créateur...</p>`;
+  }
+}
+function startGameNow(){
+  const room=readRoom(S.code);if(!room)return;
+  room.started=true;writeRoom(S.code,room);
+  clearInterval(S.lobbyPollId);launchGame(room);
+}
+
+// ================================================================
+// LANCEMENT DU JEU
+// ================================================================
+function launchGame(room){
+  S.started=true;
+  S.isLoup=(room.loupId===S.id);
+  showRoleOverlay(S.isLoup);
+  showScreen('game-screen');
+  renderRolePill();
+  setTimeout(initGameMap,80);
+  startGPS();
+  S.pollId=setInterval(syncGame,2000);
+}
+function showRoleOverlay(isLoup){
+  $('rc-emoji').textContent=isLoup?'🐱':'🐭';
+  $('rc-title').textContent=isLoup?'Tu es le LOUP !':'Tu es une SOURIS !';
+  $('rc-sub').textContent=isLoup?'Approche-toi des souris pour les toucher !':'Cours ! Le loup te cherche !';
+  $('role-change').style.display='flex';
+}
+function dismissRoleChange(){$('role-change').style.display='none';}
+function renderRolePill(){
+  const pill=$('role-pill');
+  if(S.isLoup){
+    pill.textContent='🐱 LOUP';pill.style.background='#e94560';pill.style.color='#fff';
+    $('touch-btn').style.display='block';
+  }else{
+    pill.textContent='🐭 SOURIS';pill.style.background='#27ae60';pill.style.color='#fff';
+    $('touch-btn').style.display='none';
+  }
+}
+
+// ================================================================
+// CARTE DU JEU
+// ================================================================
+function initGameMap(){
+  if(gMap){gMap.remove();gMap=null;}otherMarkers={};myMarker=null;
+  gMap=L.map('game-map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(gMap);
+  if(S.zone.length>=3){
+    const lls=S.zone.map(p=>[p.lat,p.lng]);
+    const poly=L.polygon(lls,{color:'#e94560',fillColor:'#e94560',fillOpacity:0.1,weight:2,dashArray:'5'}).addTo(gMap);
+    gMap.fitBounds(poly.getBounds(),{padding:[30,30]});
+  }
+}
+function makeIcon(color,emoji){
+  return L.divIcon({
+    html:`<div style="background:${color};width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:13px;">${emoji}</div>`,
+    className:'',iconSize:[28,28],iconAnchor:[14,14]
+  });
+}
+function refreshMyMarker(){
+  if(!gMap||!S.myLat)return;
+  const ll=[S.myLat,S.myLng];
+  if(!myMarker){
+    myMarker=L.marker(ll,{icon:makeIcon(S.isLoup?'#e94560':'#27ae60',S.isLoup?'🐱':'🐭')})
+      .addTo(gMap).bindPopup(`${S.name} (toi)`);
+    gMap.setView(ll,18);
+  }else{myMarker.setLatLng(ll);}
+}
+
+// ================================================================
+// GPS
+// ================================================================
+function startGPS(){
+  if(!navigator.geolocation){showNotif('GPS indisponible','#e94560');return;}
+  S.watchId=navigator.geolocation.watchPosition(p=>{
+    S.myLat=p.coords.latitude;S.myLng=p.coords.longitude;
+    updateMe();refreshMyMarker();checkBounds();
+    if(S.isLoup)updateTouchButton();
+  },()=>showNotif('Erreur GPS — vérifie les permissions','#e94560'),
+  {enableHighAccuracy:true,maximumAge:3000,timeout:12000});
+}
+
+// ================================================================
+// BOUTON TOUCHER — logique de proximité
+// ================================================================
+function updateTouchButton(){
+  if(!S.isLoup||!S.myLat)return;
+  const room=readRoom(S.code);if(!room)return;
+
+  // Si une demande est déjà en cours, on attend
+  if(room.touchRequest)return;
+
+  let closest=null,closestD=Infinity;
+  Object.entries(room.players).forEach(([id,p])=>{
+    if(id===S.id||id===room.loupId)return;
+    if(!p.lat||!p.lng)return;
+    const d=haversine(S.myLat,S.myLng,p.lat,p.lng);
+    if(d<closestD){closestD=d;closest={id,name:p.name,dist:d};}
+  });
+
+  const btn=$('touch-btn');
+  const distEl=$('distance-indicator');
+
+  if(!closest){
+    btn.textContent='🐾 Approche-toi d\'une souris…';btn.classList.remove('ready');
+    distEl.textContent='';distEl.className='';
+    return;
+  }
+
+  const d=Math.round(closestD);
+  if(closestD<=10){
+    // PRÊT À TOUCHER
+    btn.textContent=`👋 TOUCHER ${closest.name} ! (${d}m)`;
+    btn.classList.add('ready');
+    distEl.textContent=`🔴 ${closest.name} est à ${d}m — TOUCHE-LE !`;
+    distEl.className='dist-close';
+    S.pendingTouchTarget=closest;
+  }else if(closestD<=30){
+    btn.textContent=`🐾 Approche-toi de ${closest.name}… (${d}m)`;
+    btn.classList.remove('ready');
+    distEl.textContent=`🟠 ${closest.name} est à ${d}m`;
+    distEl.className='dist-medium';
+    S.pendingTouchTarget=null;
+  }else{
+    btn.textContent=`🐾 Approche-toi d\'une souris…`;
+    btn.classList.remove('ready');
+    distEl.textContent=`⚪ Souris la plus proche : ${d}m`;
+    distEl.className='';
+    S.pendingTouchTarget=null;
+  }
+}
+
+// ================================================================
+// TOUCHER — le loup envoie la demande
+// ================================================================
+function touchPlayer(){
+  if(!S.isLoup){return;}
+  if(!S.pendingTouchTarget){
+    showNotif('Approche-toi d\'une souris d\'abord ! (moins de 10m)','#888');return;
+  }
+  const room=readRoom(S.code);if(!room)return;
+  if(room.touchRequest){showNotif('Attends la confirmation…','#888');return;}
+
+  // Vérifie toujours la distance (sécurité)
+  const p=room.players[S.pendingTouchTarget.id];
+  if(!p||!p.lat){showNotif('Cible perdue…','#888');return;}
+  const d=haversine(S.myLat,S.myLng,p.lat,p.lng);
+  if(d>15){
+    showNotif(`Trop loin ! ${Math.round(d)}m (max 10m)`,'#e94560');
+    S.pendingTouchTarget=null;
+    updateTouchButton();
+    return;
+  }
+
+  // Envoie la demande
+  room.touchRequest={fromId:S.id,fromName:S.name,toId:S.pendingTouchTarget.id,ts:Date.now()};
+  writeRoom(S.code,room);
+  showNotif(`Demande envoyée à ${S.pendingTouchTarget.name} — attend sa confirmation !`,'#f5a623');
+  $('touch-btn').textContent='⏳ En attente de confirmation…';
+  $('touch-btn').classList.remove('ready');
+}
+
+// ================================================================
+// SYNC — vérifie les événements distants
+// ================================================================
+let lastTouchRequestId = null;
+
+function syncGame(){
+  const room=readRoom(S.code);if(!room)return;
+
+  // --- Je suis une souris : est-ce que le loup m'a touché ? ---
+  if(!S.isLoup && room.touchRequest && room.touchRequest.toId===S.id){
+    const req=room.touchRequest;
+    // Affiche seulement si c'est une nouvelle demande
+    if(req.ts !== lastTouchRequestId){
+      lastTouchRequestId=req.ts;
+      showAcceptOverlay(req.fromName);
+    }
+  }
+
+  // --- Si la demande a expiré (>15s sans réponse, on annule) ---
+  if(room.touchRequest && (Date.now()-room.touchRequest.ts)>15000){
+    if(S.id===room.touchRequest.fromId || S.id===room.loupId){
+      room.touchRequest=null;
+      writeRoom(S.code,room);
+      showNotif('Délai dépassé, la touche a été annulée.','#888');
+    }
+  }
+
+  // --- Est-ce que je suis devenu loup ? ---
+  const prevIsLoup=S.isLoup;
+  S.isLoup=(room.loupId===S.id);
+  if(!prevIsLoup && S.isLoup){
+    // Je suis devenu loup
+    showNotif('🐱 Tu es maintenant le LOUP !','#e94560');
+    showRoleOverlay(true);renderRolePill();
+    if(myMarker){gMap.removeLayer(myMarker);myMarker=null;}
+    refreshMyMarker();
+  }
+
+  S.players=room.players;
+  refreshOtherMarkers(room);
+  renderStatus(room);
+  if(S.isLoup)updateTouchButton();
+}
+
+// ================================================================
+// ACCEPT OVERLAY — la souris touchée accepte
+// ================================================================
+function showAcceptOverlay(catcherName){
+  $('catcher-name').textContent=catcherName;
+  $('accept-overlay').style.display='flex';
+  // Vibration si supportée
+  if(navigator.vibrate)navigator.vibrate([300,100,300]);
+}
+function acceptLoup(){
+  const room=readRoom(S.code);if(!room)return;
+  if(!room.touchRequest||room.touchRequest.toId!==S.id)return;
+
+  const prevLoupId=room.loupId;
+  // Transfère le rôle
+  room.players[prevLoupId].isLoup=false;
+  room.players[S.id].isLoup=true;
+  room.loupId=S.id;
+  room.touchRequest=null;
+  writeRoom(S.code,room);
+
+  $('accept-overlay').style.display='none';
+  lastTouchRequestId=null;
+  // La mise à jour du rôle sera détectée dans syncGame
+}
+
+// ================================================================
+// MARQUEURS DES AUTRES
+// ================================================================
+function refreshOtherMarkers(room){
+  if(!gMap)return;
+  Object.entries(room.players).forEach(([id,p])=>{
+    if(id===S.id)return;
+    const isTheirLoup=(id===room.loupId);
+    // Souris ne voient pas le loup sur la carte
+    if(!S.isLoup&&isTheirLoup){
+      if(otherMarkers[id]){gMap.removeLayer(otherMarkers[id]);delete otherMarkers[id];}
+      return;
+    }
+    if(!p.lat||!p.lng)return;
+    const ll=[p.lat,p.lng];
+    const col=isTheirLoup?'#e94560':'#27ae60';
+    const em=isTheirLoup?'🐱':'🐭';
+    if(!otherMarkers[id]){
+      otherMarkers[id]=L.marker(ll,{icon:makeIcon(col,em)}).addTo(gMap).bindPopup(p.name);
+    }else{otherMarkers[id].setLatLng(ll);}
+  });
+}
+function renderStatus(room){
+  $('players-status').innerHTML=Object.entries(room.players).map(([id,p])=>{
+    const isL=(id===room.loupId);
+    return`<span style="padding:4px 10px;border-radius:20px;background:${isL?'rgba(233,69,96,.2)':'rgba(39,174,96,.2)'};font-size:.72rem;border:1px solid ${isL?'#e94560':'#27ae60'};color:${isL?'#e94560':'#27ae60'};">${isL?'🐱':'🐭'} ${p.name}${id===S.id?' ★':''}</span>`;
+  }).join('');
+}
+
+// ================================================================
+// PÉRIMÈTRE
+// ================================================================
+function checkBounds(){
+  if(!S.myLat||S.zone.length<3)return;
+  $('oob-alert').style.display=pointInPoly(S.myLat,S.myLng,S.zone)?'none':'block';
+}
+function pointInPoly(lat,lng,poly){
+  let inside=false,n=poly.length;
+  for(let i=0,j=n-1;i<n;j=i++){
+    const xi=poly[i].lat,yi=poly[i].lng,xj=poly[j].lat,yj=poly[j].lng;
+    if(((yi>lng)!==(yj>lng))&&(lat<(xj-xi)*(lng-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371000,dl=(lat2-lat1)*Math.PI/180,dn=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dl/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dn/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ================================================================
+// SYNC INTER-ONGLETS
+// ================================================================
+window.addEventListener('storage',e=>{if(e.key===rk(S.code))onRemoteUpdate();});
+function onRemoteUpdate(){S.started?syncGame():renderLobby();}
+
+showScreen('home');
+</script>
+</body>
+</html>
